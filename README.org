@@ -1,0 +1,136 @@
+#+TITLE: Cryptokasten create from template
+#+TAGS: cryptokasten
+#+PROPERTY: header-args :session *shell cryptokasten-create-from-template* :results silent raw
+#+OPTIONS: ^:nil
+
+[[https://github.com/cryptokasten][file:https://img.shields.io/badge/dynamic/json.svg?url=https://api.github.com/users/cryptokasten&label=Cryptokasten&query=$.public_repos]]
+
+Create a cryptokasten repo from a template.
+
+** Data description
+*** Parameters
+
+No.
+
+*** Input data
+
+| Mount          | Description      | Example                                                                                    |
+|----------------+------------------+--------------------------------------------------------------------------------------------|
+| /data/doc.json | Cryptokasten doc | [[https://github.com/cryptokasten/cryptokasten-doc-example][cryptokasten-doc-example]]     |
+| /data/template | Template         | [[https://github.com/cryptokasten/cryptokasten-template-note][cryptokasten-template-note]] |
+
+*** Output data
+
+| Mount        | Description                | Example |
+|--------------+----------------------------+---------|
+| /data/output | Rendered cryptokasten repo |         |
+
+** Development environment
+
+Base docker image: [[https://github.com/cryptokasten/cryptokasten-create-from-template-environment][cryptokasten/cryptokasten-create-from-template-environment]] 
+
+#+BEGIN_SRC sh
+docker pull cryptokasten/cryptokasten-create-from-template-environment
+#+END_SRC
+
+#+BEGIN_SRC sh
+docker run --rm -it \
+  -v $CRYPTOKASTEN/repo/cryptokasten-doc-example/example-doc.yml:/data/doc.json \
+  -v $CRYPTOKASTEN/repo/cryptokasten-template-note/template:/data/template \
+  -v $CRYPTOKASTEN/tmp/new:/data/output \
+  -v $TMPDIR:$TMPDIR  \
+  cryptokasten/cryptokasten-create-from-template-environment python
+#+END_SRC
+
+** Code
+   :PROPERTIES:
+   :header-args: :tangle src/cryptokasten_create_from_tempate.py
+   :END:
+
+*** Imports
+
+#+BEGIN_SRC python
+import yaml
+import os
+
+from jinja2 import Environment, BaseLoader
+#+END_SRC
+
+*** Parameters
+
+#+BEGIN_SRC python
+TEMPLATE_DIR = "/data/template"
+OUTPUT_DIR = "/data/output"
+DOC_FN = "/data/doc.json"
+#+END_SRC
+
+*** Read doc
+
+#+BEGIN_SRC python
+def read_doc(doc_fn=DOC_FN):
+    f = open(doc_fn, "rt")
+    doc = yaml.load(f.read())
+    f.close()
+    return doc
+#+END_SRC
+
+*** Get directories
+
+#+BEGIN_SRC python
+def relwalk(root):
+    directories = os.listdir(root)
+    for d in directories:
+        cur = os.path.join(root, d)
+        if os.path.isdir(cur):
+            yield ("d", d)
+            for t, sub in relwalk(cur):
+                yield(t, os.path.join(d, sub))
+        else:
+            yield("f", d)
+#+END_SRC
+
+*** Append file template
+
+#+BEGIN_SRC python
+def render_template(template, doc):
+    rtemplate = Environment(loader=BaseLoader).from_string(template)
+    return rtemplate.render(doc=doc)
+#+END_SRC
+
+*** Append template
+
+#+BEGIN_SRC python
+def append_template(doc, template_dir=TEMPLATE_DIR, output_dir=OUTPUT_DIR):
+    for t, name in relwalk(template_dir):
+        if t == "d":
+            print("Create directory", name)
+            os.mkdir(os.path.join(output_dir, name))
+        else:
+            print("Create file", name)
+            fi = open(os.path.join(template_dir, name), "rt")
+            fo = open(os.path.join(output_dir, name), "wt")
+            fo.write(render_template(fi.read(), doc))
+            fi.close()
+            fo.close()
+#+END_SRC
+
+*** Main
+
+#+BEGIN_SRC python
+doc = read_doc()
+#+END_SRC
+
+#+BEGIN_SRC python
+append_template(doc)
+#+END_SRC
+
+** Run
+
+#+BEGIN_SRC sh
+docker run --rm \
+  -v $CRYPTOKASTEN/repo/cryptokasten-doc-example/example-doc.yml:/data/doc.json \
+  -v $CRYPTOKASTEN/repo/cryptokasten-template-note/template:/data/template \
+  -v $CRYPTOKASTEN/tmp/new:/data/output cryptokasten/cryptokasten-create-from-template \
+#+END_SRC
+
+** References
