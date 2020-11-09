@@ -124,6 +124,17 @@ doc = read_doc()
 append_template(doc)
 #+END_SRC
 
+** Build
+
+*** Dockerfile
+
+#+BEGIN_SRC Dockerfile :tangle Dockerfile
+FROM cryptokasten/cryptokasten-create-from-template-environment
+RUN mkdir /code
+COPY src/* /code
+ENTRYPOINT ["python" "/code/cryptokasten_create_from_tempate.py"]
+#+END_SRC
+
 ** Run
 
 #+BEGIN_SRC sh
